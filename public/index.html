@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Assistant</title>
+    <!-- Twilio Voice SDK v2.x (local file) -->
+    <script src="twilio.min.js"></script>
+    <script>
+      // Verify Twilio Voice SDK v2.x loaded properly
+      if (typeof Twilio !== "undefined") {
+        console.log("Twilio Voice SDK v2.x loaded successfully");
+        console.log("Twilio.Device available:", typeof Twilio.Device !== "undefined");
+      } else {
+        console.error("Failed to load Twilio Voice SDK v2.x");
+      }
+    </script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: white;
+      }
+
+      .container {
+        text-align: center;
+        padding: 40px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 90%;
+      }
+
+      h1 {
+        margin-bottom: 30px;
+        font-size: 2.5rem;
+        font-weight: 300;
+      }
+
+      .mic-container {
+        position: relative;
+        margin: 40px 0;
+      }
+
+      .mic-button {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+        border: none;
+        cursor: pointer;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 20px rgba(255, 107, 107, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .mic-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 25px rgba(255, 107, 107, 0.6);
+      }
+
+      .mic-button:active {
+        transform: scale(0.95);
+      }
+
+      .mic-button.calling {
+        background: linear-gradient(45deg, #4ecdc4, #44a08d);
+        animation: pulse 2s infinite;
+      }
+
+      .mic-button.connected {
+        background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+      }
+
+      @keyframes pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(78, 205, 196, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 20px rgba(78, 205, 196, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(78, 205, 196, 0);
+        }
+      }
+
+      .mic-icon {
+        font-size: 3rem;
+        color: white;
+      }
+
+      .status-text {
+        margin-top: 20px;
+        font-size: 1.2rem;
+        min-height: 30px;
+        opacity: 0.9;
+      }
+
+      .call-status {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        font-size: 0.9rem;
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .loader {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+        margin-right: 10px;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .error {
+        color: #ff6b6b;
+        background: rgba(255, 107, 107, 0.1);
+      }
+
+      .success {
+        color: #4ecdc4;
+        background: rgba(78, 205, 196, 0.1);
+      }
+
+      .instructions {
+        margin-top: 30px;
+        font-size: 0.9rem;
+        opacity: 0.8;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Voice Assistant</h1>
+      <p>Click the microphone to talk with our AI assistant</p>
+
+      <div class="mic-container">
+        <button class="mic-button" id="micButton">
+          <div class="mic-icon">🤖</div>
+        </button>
+      </div>
+
+      <div class="status-text" id="statusText">Ready to connect</div>
+
+      <div class="call-status" id="callStatus"></div>
+
+      <div class="instructions">
+        <p>Our AI assistant can help you book appointments at Glowy Beauty Bar. Simply click the microphone and start speaking!</p>
+      </div>
+    </div>
+
+    <script>
+      const micButton = document.getElementById("micButton");
+      const statusText = document.getElementById("statusText");
+      const callStatus = document.getElementById("callStatus");
+
+      let call = null; // v2.x uses Call objects instead of Connection
+      let device = null;
+      let isConnected = false;
+
+      // Set up Call event handlers for v2.x
+      function setupCallEventHandlers(callObject) {
+        console.log("Setting up call event handlers for v2.x");
+
+        callObject.on("accept", function () {
+          console.log("Call accepted");
+          isConnected = true;
+          micButton.classList.remove("calling");
+          micButton.classList.add("connected");
+          statusText.textContent = "Connected";
+          callStatus.innerHTML = '<div class="success">✅ Connected! Speak now...</div>';
+          micButton.querySelector(".mic-icon").textContent = "📞";
+          micButton.disabled = false;
+        });
+
+        callObject.on("disconnect", function () {
+          console.log("Call disconnected");
+          resetButton();
+          callStatus.innerHTML = '<div class="success">📞 Call ended</div>';
+        });
+
+        callObject.on("cancel", function () {
+          console.log("Call cancelled");
+          resetButton();
+          callStatus.innerHTML = '<div class="error">❌ Call cancelled</div>';
+        });
+
+        callObject.on("error", function (error) {
+          console.error("Call error:", error);
+          resetButton();
+          callStatus.innerHTML = `<div class="error">❌ Call error: ${error.message}</div>`;
+        });
+
+        callObject.on("reconnecting", function () {
+          console.log("Call reconnecting");
+          statusText.textContent = "Reconnecting...";
+          callStatus.innerHTML = '<div class="loader"></div>Reconnecting...';
+        });
+
+        callObject.on("reconnected", function () {
+          console.log("Call reconnected");
+          statusText.textContent = "Connected";
+          callStatus.innerHTML = '<div class="success">✅ Reconnected! Speak now...</div>';
+        });
+      }
+
+      // Initialize Twilio Device when page loads
+      async function initializeTwilioDevice() {
+        try {
+          statusText.textContent = "Getting ready...";
+
+          // Check if Twilio SDK is loaded
+          if (typeof Twilio === "undefined") {
+            throw new Error("Twilio SDK failed to load. Please check your internet connection and try refreshing the page.");
+          }
+
+          console.log("Twilio SDK loaded, version:", Twilio.VERSION || "unknown");
+
+          // Get access token from server
+          const response = await fetch("/get-token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({})
+          });
+
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error(data.error || "Failed to get access token");
+          }
+
+          // Initialize Twilio Device with v2.x API
+          const Device = Twilio.Device; // v2.x exposes Device via Twilio.Device
+          device = new Device(data.token, {
+            logLevel: "debug" // Enable debug logging
+          });
+
+          // Set up device event handlers with v2.x event names
+          device.on("error", function (error) {
+            console.error("Twilio Device error:", error);
+            statusText.textContent = "Device error";
+            callStatus.innerHTML = `<div class="error">❌ Device error: ${error.message}</div>`;
+          });
+
+          device.on("incoming", function (incomingCall) {
+            console.log("Incoming call received");
+            call = incomingCall;
+            setupCallEventHandlers(call);
+            // Auto-accept incoming calls
+            call.accept();
+          });
+
+          // For outgoing calls only, we don't need to register for incoming calls
+          // v2.x Device is ready immediately after instantiation for outgoing calls
+          console.log("Twilio Device initialized for outgoing calls");
+          statusText.textContent = "Ready to connect";
+          callStatus.innerHTML = "🤖 Click microphone to start voice chat";
+          micButton.disabled = false;
+        } catch (error) {
+          console.error("Error initializing Twilio Device:", error);
+          statusText.textContent = "Initialization failed";
+          callStatus.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+        }
+      }
+
+      micButton.addEventListener("click", async () => {
+        if (isConnected && call) {
+          // End call
+          call.disconnect();
+        } else {
+          // Start call
+          await initiateCall();
+        }
+      });
+
+      async function initiateCall() {
+        try {
+          if (!device) {
+            throw new Error("Twilio Device not initialized");
+          }
+
+          micButton.classList.add("calling");
+          statusText.textContent = "Connecting...";
+          callStatus.innerHTML = '<div class="loader"></div>Connecting to AI assistant...';
+          micButton.disabled = true;
+
+          // Request microphone permissions first
+          try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log("Microphone permission granted");
+          } catch (permissionError) {
+            throw new Error("Microphone permission required. Please allow microphone access and try again.");
+          }
+
+          // Make outbound call to the assistant using v2.x Promise-based API
+          const params = {
+            To: "assistant" // This will be handled by the TwiML app
+          };
+
+          console.log("Initiating call with params:", params);
+
+          // v2.x: device.connect() returns a Promise that resolves to a Call object
+          call = await device.connect(params);
+          console.log("Call initiated successfully:", call);
+
+          // Set up event handlers for this call
+          setupCallEventHandlers(call);
+        } catch (error) {
+          console.error("Error initiating call:", error);
+          statusText.textContent = "Connection failed";
+          callStatus.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+          resetButton();
+        } finally {
+          // Only re-enable button if call setup failed
+          if (!call) {
+            micButton.disabled = false;
+          }
+        }
+      }
+
+      function resetButton() {
+        isConnected = false;
+        call = null;
+        micButton.classList.remove("calling", "connected");
+        statusText.textContent = "Ready to connect";
+        micButton.querySelector(".mic-icon").textContent = "🤖";
+        micButton.disabled = false;
+      }
+
+      // Auto-clear status messages after some time
+      setInterval(() => {
+        if (callStatus.textContent && !isConnected) {
+          setTimeout(() => {
+            if (!isConnected) {
+              callStatus.innerHTML = "";
+            }
+          }, 10000);
+        }
+      }, 1000);
+
+      // Initialize when page loads
+      window.addEventListener("load", function () {
+        // Add a small delay to ensure Twilio SDK is fully loaded
+        setTimeout(() => {
+          initializeTwilioDevice();
+        }, 500);
+      });
+
+      // Also try to initialize when DOM is ready (backup)
+      document.addEventListener("DOMContentLoaded", function () {
+        setTimeout(() => {
+          if (!device) {
+            initializeTwilioDevice();
+          }
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>
