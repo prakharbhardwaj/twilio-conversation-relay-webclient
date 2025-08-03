@@ -1,5 +1,7 @@
 # Twilio ConversationRelay Web Client
 
+<img width="3024" height="1826" alt="twilio-conversation-relay-webclient" src="https://github.com/user-attachments/assets/ae2a58f7-e4f0-4b41-bf51-82614b141ea4" />
+
 A browser-based AI voice assistant using Twilio Voice SDK v2.x with real-time conversation capabilities. Talk to an AI assistant directly through your web browser without needing phone numbers.
 
 ![Browser Voice Assistant](https://img.shields.io/badge/Twilio-Voice%20SDK%20v2.x-red?style=flat-square)
